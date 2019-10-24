@@ -1,7 +1,6 @@
 import os
 import re
 import timeit
-
 import requests
 
 SOCRATA_CATALOG = r'http://api.us.socrata.com/api/catalog/v1?domains={}&only=datasets&limit={}&offset={}'
