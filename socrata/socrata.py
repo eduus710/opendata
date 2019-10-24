@@ -1,7 +1,8 @@
-import requests
 import os
 import re
 import timeit
+
+import requests
 
 SOCRATA_CATALOG = r'http://api.us.socrata.com/api/catalog/v1?domains={}&only=datasets&limit={}&offset={}'
 SOCRATA_CSV_RESOURCE = r'https://{}/resource/{}.csv?$limit={}&$offset={}'
@@ -9,7 +10,7 @@ SOCRATA_CSV_RESOURCE = r'https://{}/resource/{}.csv?$limit={}&$offset={}'
 
 # fetch a portal catalog from socrata
 # returns json
-#
+
 def fetch_catalog(domain):
     page = 0
     limit = 50
@@ -30,7 +31,7 @@ def fetch_catalog(domain):
 
 
 # fetch a socrata dataset as csv to specified local file
-#
+
 def fetch_one_csv(domain, dsname, csvfile):
     # pagination control variables
     more_pages = True
@@ -39,7 +40,7 @@ def fetch_one_csv(domain, dsname, csvfile):
 
     print('fetching {} to {}'.format(dsname, csvfile))
 
-    # socrata api for some portals supports 50,000 records / request
+    # socrata api for some portals supports max 50,000 records / request
     # have to paginate
     # open output file. don't let python alter newline for platform
     with open(csvfile, 'w', encoding='utf-8', newline='') as f:
@@ -72,10 +73,8 @@ def fetch_one_csv(domain, dsname, csvfile):
 
 # fetch multiple socrata datasets as csv to local file
 # store in specified directory (default to ./)
-#
-def fetch_many_csv(domain, dslist, directory='./'):
-    start_time = timeit.default_timer()
 
+def fetch_many_csv(domain, dslist, directory='./'):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -87,18 +86,19 @@ def fetch_many_csv(domain, dslist, directory='./'):
             print('unexpected error for dataset {}'.format(dsname))
             print(e)
 
-    elapsed = timeit.default_timer() - start_time
-    print(elapsed)
-
 
 # fetch all socrata datasets from a portal catalog
-#
+
 def fetch_all_catalog_csv(domain, csvdir):
+    start_time = timeit.default_timer()
+
     catalog = fetch_catalog(domain)
     dslist = []
     for result in catalog:
         resource = result['resource']
-        # TODO asset resource type a dataset for validity
         dslist.append(resource['id'])
     print(dslist)
     fetch_many_csv(domain, dslist, csvdir)
+
+    elapsed = timeit.default_timer() - start_time
+    print(f'completed in {elapsed} seconds')
