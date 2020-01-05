@@ -1,15 +1,14 @@
 import os
 import re
+import logging
 import timeit
 import requests
 
-SOCRATA_CATALOG = r'http://api.us.socrata.com/api/catalog/v1?domains={}&only=datasets&limit={}&offset={}'
-SOCRATA_CSV_RESOURCE = r'https://{}/resource/{}.csv?$limit={}&$offset={}'
+logger = logging.getLogger('odde.socrata.api')
 
 
 # fetch a portal catalog from socrata
 # returns json
-
 def fetch_catalog(domain):
     page = 0
     limit = 50
@@ -18,7 +17,7 @@ def fetch_catalog(domain):
 
     # paginate catalog requests and assemble
     while more_results:
-        url = SOCRATA_CATALOG.format(domain, limit, page * limit)
+        url = f'http://api.us.socrata.com/api/catalog/v1?domains={domain}&only=datasets&limit={limit}&offset={page*limit}'
         json = requests.get(url).json()
         if len(json['results']) == 0:
             more_results = False
@@ -30,26 +29,28 @@ def fetch_catalog(domain):
 
 
 # fetch a socrata dataset as csv to specified local file
-
+# csv via api differs from csv download link on portal
+# api headers are 'field-name' vs 'column-name' and seem
+# more database-friendly.
 def fetch_one_csv(domain, dsname, csvfile):
     # pagination control variables
     more_pages = True
     page = 0
     limit = 50000
 
-    print('fetching {} to {}'.format(dsname, csvfile))
+    logger.info(f'fetching {dsname} to {csvfile}')
 
     # socrata api for some portals supports max 50,000 records / request
     # have to paginate
     # open output file. don't let python alter newline for platform
     with open(csvfile, 'w', encoding='utf-8', newline='') as f:
         while more_pages:
-            # print a progress meter
-            endchar = '\n' if (page > 0 and page % 20 == 0) else ' '
-            print('.', end=endchar, flush=True)
+            # log progress
+            if page > 0 and page % 5 == 0:
+                logger.info(f'working: {page*limit} records')
 
             # request a page
-            url = SOCRATA_CSV_RESOURCE.format(domain, dsname, limit, page * limit)
+            url = f'https://{domain}/resource/{dsname}.csv?$limit={limit}&$offset={page*limit}'
             with requests.get(url, stream=True) as r:
                 iterlines = r.iter_lines(decode_unicode=True)
                 # all pages come with headers; ignore them after 1st page
@@ -67,37 +68,37 @@ def fetch_one_csv(domain, dsname, csvfile):
                     f.write(s)
                     more_pages = True
                 page += 1
-    print('\ndone')
+    logger.info('done')
 
 
-# fetch multiple socrata datasets as csv to local file
-# store in specified directory (default to ./)
-
-def fetch_many_csv(domain, dslist, directory='./'):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+# fetch multiple specified socrata datasets from a portal
+# store in specified directory
+def fetch_many_csv(domain, dslist, target_dir='./'):
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
 
     for dsname in dslist:
-        csv = "{}/{}.csv".format(directory, dsname)
+        csv = "{}/{}.csv".format(target_dir, dsname)
         try:
             fetch_one_csv(domain, dsname, csv)
         except Exception as e:
-            print('unexpected error for dataset {}'.format(dsname))
-            print(e)
+            logger.error(f'unexpected error for dataset {dsname}')
+            logger.error(e)
 
 
-# fetch all socrata datasets from a portal catalog
-
-def fetch_all_catalog_csv(domain, csvdir):
+# fetch all socrata datasets from a portal
+# use catalog to determine available datasets
+# store in specified directory
+def fetch_domain_csv(domain, target_dir='./'):
     start_time = timeit.default_timer()
 
     catalog = fetch_catalog(domain)
-    dslist = []
+    datasets = []
     for result in catalog:
         resource = result['resource']
-        dslist.append(resource['id'])
-    print(dslist)
-    fetch_many_csv(domain, dslist, csvdir)
+        datasets.append(resource['id'])
+    logger.info(f'found {datasets}')
+    fetch_many_csv(domain, datasets, target_dir)
 
     elapsed = timeit.default_timer() - start_time
-    print(f'completed in {elapsed} seconds')
+    logger.info(f'completed in {elapsed} seconds')
