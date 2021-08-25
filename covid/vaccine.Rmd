@@ -1,0 +1,127 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+pfizer <-
+  read_csv(
+    'https://data.cdc.gov/api/views/saz5-9hgg/rows.csv?accessType=DOWNLOAD',
+    na = c('N/A')
+  )
+pfizer <- pfizer %>%
+  rename(Week = 'Week of Allocations',
+         Doses1 = '1st Dose Allocations',
+         Doses2 = '2nd Dose Allocations') %>%
+  mutate(Week = as.Date(Week, format = '%m/%d/%Y'))
+pfizer
+```
+```{r}
+moderna <-
+  read_csv(
+    'https://data.cdc.gov/api/views/b7pe-5nws/rows.csv?accessType=DOWNLOAD',
+    na = c('N/A')
+  )
+moderna <- moderna %>%
+  rename(Week = 'Week of Allocations',
+         Doses1 = '1st Dose Allocations',
+         Doses2 = '2nd Dose Allocations') %>%
+  mutate(Week = as.Date(Week, format = '%m/%d/%Y'))
+moderna
+```
+```{r}
+janssen <-
+  read_csv(
+    'https://data.cdc.gov/api/views/w9zu-fywh/rows.csv?accessType=DOWNLOAD',
+    na = c('N/A')
+  )
+janssen <- janssen %>%
+  rename(Week = 'Week of Allocations',
+         Doses1 = '1st Dose Allocations') %>%
+  mutate(Week = as.Date(Week, format = '%m/%d/%Y'))
+janssen$Doses2 = 0
+janssen
+```
+
+```{r}
+all <- merge(
+  pfizer,
+  moderna,
+  by = c('Jurisdiction', 'Week'),
+  suffixes = c('_P', '_M'),
+  all = TRUE
+) %>%
+  merge(janssen,
+        by = c('Jurisdiction', 'Week'),
+        all = TRUE) %>%
+  rename(Doses1_J = Doses1)
+
+all <- all %>%
+  mutate_if(is.numeric, funs(replace_na(., 0)))
+all$Doses_P = all$Doses1_P + all$Doses2_P
+all$Doses_M = all$Doses1_M + all$Doses2_M
+all$Doses_J = all$Doses1_J
+all$Doses = all$Doses_P + all$Doses_M + all$Doses_J
+all
+```
+
+
+```{r}
+subset(all, Jurisdiction=='Pennsylvania')
+```
+
+```{r}
+total = all %>% 
+  group_by(Week) %>% 
+  summarise(Doses_J = sum(Doses_J), Doses_P=sum(Doses_P), Doses_M=sum(Doses_M))
+
+total
+```
+```{r}
+ggplot(subset(all, Jurisdiction=='Delaware' & Week > '2021-01-01')) + geom_point(aes(Week, Doses))
+
+```
+```{r}
+ggplot(subset(all, Jurisdiction=='Pennsylvania' & Week > '2021-01-01')) + geom_point(aes(Week, Doses))
+```
+```{r}
+
+ggplot(subset(total, Week > '2021-01-01'), aes(x=Week, y=Doses_M)) + 
+  geom_bar(stat='identity')
+```
+
+```{r}
+pfizer$source <- 'pfizer'
+moderna$source <- 'moderna'
+janssen$source <- 'janssen'
+
+all2 <- bind_rows(pfizer, moderna, janssen)
+all2$Doses <- all2$Doses1 + all2$Doses2
+all2
+
+```
+
+
+```{r}
+ggplot(data=subset(all2, Jurisdiction=='Delaware' & Week > '2021-01-01'),
+       aes(x=Week, y=Doses, fill=source)) +
+  geom_bar(stat="identity")
+```
+```{r}
+ggplot(data=subset(all2, Jurisdiction=='Pennsylvania' & Week > '2021-01-01'),
+       aes(x=Week, y=Doses, fill=source)) +
+  geom_bar(stat="identity")
+```
+```{r}
+ggplot(data=subset(all2, Week > '2021-01-01'),
+       aes(x=Week, y=Doses, fill=source)) +
+  geom_bar(stat="identity")
+```

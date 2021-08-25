@@ -1,0 +1,56 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+covid <-
+  read_csv(
+    'https://data.pa.gov/api/views/j72v-r42c/rows.csv?accessType=DOWNLOAD'
+  )
+covid <- na.omit(covid)
+covid
+```
+```{r}
+delaware <- covid %>%
+  rename(new_cases_7d = '7-day Average New Cases',
+         pop_2019 = 'Population (2019)') %>%
+  filter(Jurisdiction %in% ('Delaware')) %>%
+  mutate(Date=as.Date(Date, format='%m/%d/%Y')) %>%
+  select(Date, new_cases_7d, pop_2019)
+
+delaware$curr_infections_7d <- 5*10*delaware$new_cases_7d
+delaware$pct_infections_7d <- delaware$curr_infections_7d / delaware$pop_2019
+
+# curr infectious: 2/3 (asymptotic,not isolating) + 2/3 (infectious 10 of 14 days)
+delaware$curr_infectious_7d <- delaware$curr_infections_7d * (2/3) * (2/3)
+delaware$pct_infectious_7d <- delaware$curr_infectious_7d / delaware$pop_2019
+
+# crossfit risk - 10 people
+delaware$xfit_risk = 1- (1-delaware$pct_infectious_7d)^10
+
+delaware <- delaware[order(delaware$Date),]
+
+delaware
+```
+```{r}
+p1 <- ggplot(delaware) + geom_point(aes(Date, new_cases_7d))
+p2 <- ggplot(delaware) + geom_point(aes(Date, pct_infections_7d))
+p3 <- ggplot(delaware) + geom_point(aes(Date, pct_infectious_7d))
+p4 <- ggplot(delaware) + geom_point(aes(Date, xfit_risk))
+(p1 | p2 | p3) /
+p4
+```
+```{r}
+p <- ggplot(delaware) + geom_point(aes(Date, new_cases_7d)) + 
+  ggtitle('Delaware County 7d cases')
+p
+```
