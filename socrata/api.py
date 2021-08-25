@@ -1,3 +1,6 @@
+# socrata utilities
+# retrieve portal catalogs and datasets
+
 import os
 import re
 import logging
@@ -28,8 +31,8 @@ def fetch_catalog(domain):
     return results
 
 
-# fetch a socrata dataset as csv to specified local file
-# csv via api differs from csv download link on portal
+# fetch a socrata dataset as csv to specified local file.
+# csv from api differs from csv download link on portal.
 # api headers are 'field-name' vs 'column-name' and seem
 # more database-friendly.
 def fetch_one_csv(domain, dsname, csvfile):
